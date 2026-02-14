@@ -1,0 +1,481 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <link rel="icon" href="data:,">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Ultimate Interaction - Cinematic Physics</title>
+    <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020202;
+            color: white;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .input_video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #020202;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s;
+        }
+
+        .loading-text {
+            color: #ff69b4;
+            font-size: 2rem;
+            text-shadow: 0 0 20px rgba(255,105,180,1);
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        .loading-sub {
+            color: #888;
+            font-size: 1rem;
+        }
+
+        #ai-cursor {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,105,180,0.6) 30%, rgba(255,255,255,0) 80%);
+            border-radius: 50%;
+            z-index: 1000;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none;
+            transition: left 0.05s, top 0.05s;
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.8);
+        }
+
+        .gesture-guide {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(20,20,20,0.6);
+            backdrop-filter: blur(15px);
+            padding: 15px 40px;
+            border-radius: 50px;
+            display: flex;
+            gap: 40px;
+            border: 1px solid rgba(255,105,180,0.2);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        .guide-item span {
+            font-size: 2.5rem;
+            display: block;
+            margin: 0;
+            filter: drop-shadow(0 0 10px rgba(255,105,180,0.5));
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: default;
+        }
+
+            .guide-item span:hover {
+                transform: scale(1.2);
+                filter: drop-shadow(0 0 15px rgba(255,255,255,0.8));
+            }
+
+        .hamburger {
+            position: fixed;
+            top: 25px;
+            left: 25px;
+            z-index: 1000;
+            cursor: pointer;
+            width: 35px;
+            height: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+            .hamburger span {
+                display: block;
+                height: 3px;
+                width: 100%;
+                background: #fff;
+                border-radius: 3px;
+                transition: 0.3s;
+                box-shadow: 0 0 5px rgba(255,255,255,0.5);
+            }
+
+            .hamburger.open span:nth-child(1) {
+                transform: translateY(11px) rotate(45deg);
+            }
+
+            .hamburger.open span:nth-child(2) {
+                opacity: 0;
+            }
+
+            .hamburger.open span:nth-child(3) {
+                transform: translateY(-11px) rotate(-45deg);
+            }
+
+        .glass-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            height: 100vh;
+            background: rgba(10,10,10,0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,105,180,0.3);
+            z-index: 100;
+            transform: translateX(-100%);
+            transition: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            padding-top: 80px;
+        }
+
+            .glass-sidebar.active {
+                transform: translateX(0);
+            }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+        }
+
+            .nav-links li {
+                padding: 15px 30px;
+                transition: 0.3s;
+            }
+
+                .nav-links li:hover {
+                    background: rgba(255,105,180,0.2);
+                    border-left: 4px solid #ff69b4;
+                }
+
+            .nav-links a {
+                color: white;
+                text-decoration: none;
+                font-size: 1.1rem;
+            }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading-screen">
+        <div class="loading-text">⚡ Cho mượn bàn tay xinh đẹp của em bé eoooooo xíu nhoa ⚡</div>
+        <div class="loading-sub">Vui lòng cấp quyền Camera và đợi giây lát...</div>
+    </div>
+
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    <nav class="glass-sidebar">
+        <ul class="nav-links">
+            <li><a href="index.html">🌳 Cây Tình Yêu</a></li>
+            <li><a href="magic-particles.html">✨ Phép Thuật Tình Yêu</a></li>
+            <li><a href="memory-station.html">💿 Trạm Ký Ức 3D</a></li>
+            <li><a href="love-letter.html">💌 Thư Vượt Thời Gian</a></li>
+        </ul>
+    </nav>
+
+    <div id="ai-cursor"></div>
+
+    <div class="gesture-guide">
+        <div class="guide-item" title="Nắm đấm để tạo Trái Tim"><span>✊</span></div>
+        <div class="guide-item" title="Chữ V để hiện I LOVE YOU"><span>✌️</span></div>
+        <div class="guide-item" title="Xòe tay để tạo ngân hà xoáy"><span>🖐️</span></div>
+    </div>
+
+    <video class="input_video"></video>
+    <div id="canvas-container"></div>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const sidebar = document.querySelector('.glass-sidebar');
+        hamburger.addEventListener('click', () => { hamburger.classList.toggle('open'); sidebar.classList.toggle('active'); });
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.0006);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 6000);
+        camera.position.z = 800;
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        function createPremiumGlow() {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.2, 'rgba(255, 20, 147, 1)');
+            grad.addColorStop(0.5, 'rgba(255, 105, 180, 0.5)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const particleCount = 20000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const targetStars = new Float32Array(particleCount * 3);
+        const targetHeart = new Float32Array(particleCount * 3);
+        const targetText = new Float32Array(particleCount * 3);
+        const starVelocities = new Float32Array(particleCount * 3);
+        const particleGroup = new THREE.Group();
+
+        function generateTextPoints(count) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 100px "Segoe UI", Roboto, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('I LOVE YOU', canvas.width / 2, canvas.height / 2);
+
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const validPoints = [];
+
+            for (let y = 0; y < canvas.height; y += 3) {
+                for (let x = 0; x < canvas.width; x += 3) {
+                    if (imgData[(y * canvas.width + x) * 4 + 3] > 128) {
+                        validPoints.push({
+                            x: (x - canvas.width / 2) * 1.8,
+                            y: -(y - canvas.height / 2) * 1.8,
+                            z: (Math.random() - 0.5) * 40
+                        });
+                    }
+                }
+            }
+
+            const textArray = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const p = validPoints[i % validPoints.length];
+                textArray[i * 3] = p.x + (Math.random() - 0.5) * 5;
+                textArray[i * 3 + 1] = p.y + (Math.random() - 0.5) * 5;
+                textArray[i * 3 + 2] = p.z + (Math.random() - 0.5) * 10;
+            }
+            return textArray;
+        }
+
+        function initApp() {
+            const textPoints = generateTextPoints(particleCount);
+
+            for (let i = 0; i < particleCount; i++) {
+                targetStars[i * 3] = (Math.random() - 0.5) * 3000;
+                targetStars[i * 3 + 1] = (Math.random() - 0.5) * 2500;
+                targetStars[i * 3 + 2] = (Math.random() - 0.5) * 3000;
+                starVelocities[i * 3] = (Math.random() - 0.5) * 0.5;
+                starVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
+                starVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+
+                const t = Math.random() * Math.PI * 2;
+                const scaleFactor = Math.pow(Math.random(), 0.5);
+                const heartScale = 30;
+                let hx = 16 * Math.pow(Math.sin(t), 3);
+                let hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+                const maxThickness = 150;
+                const zVolume = (Math.random() - 0.5) * maxThickness * (1 - scaleFactor * scaleFactor * 0.5);
+                targetHeart[i * 3] = hx * heartScale * scaleFactor;
+                targetHeart[i * 3 + 1] = hy * heartScale * scaleFactor;
+                targetHeart[i * 3 + 2] = zVolume;
+
+                targetText[i * 3] = textPoints[i * 3];
+                targetText[i * 3 + 1] = textPoints[i * 3 + 1];
+                targetText[i * 3 + 2] = textPoints[i * 3 + 2];
+
+                positions[i * 3] = targetStars[i * 3];
+                positions[i * 3 + 1] = targetStars[i * 3 + 1];
+                positions[i * 3 + 2] = targetStars[i * 3 + 2];
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({
+                size: 14, map: createPremiumGlow(), transparent: true,
+                blending: THREE.AdditiveBlending, depthWrite: false, color: 0xffffff
+            });
+            particleGroup.add(new THREE.Points(geometry, material));
+            scene.add(particleGroup);
+
+            animate();
+            cameraAI.start();
+        }
+
+        let currentState = 'STARS';
+
+        // BIẾN LƯU VỊ TRÍ TAY ĐÍCH (Từ AI quét)
+        let targetFingerX = 0;
+        let targetFingerY = 0;
+        // BIẾN LƯU VỊ TRÍ TÂM LỐC XOÁY THỰC TẾ (Sẽ lướt mượt theo vị trí đích)
+        let fingerTarget = new THREE.Vector3(0, 0, 0);
+
+        let isFingerControlling = false;
+        let time = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.04;
+
+            // --- CẬP NHẬT TÂM LỐC XOÁY SIÊU MƯỢT (LERP) ---
+            if (isFingerControlling) {
+                // Di chuyển tâm lốc xoáy trượt êm tới tọa độ tay thay vì giật lập tức
+                fingerTarget.x += (targetFingerX - fingerTarget.x) * 0.05;
+                fingerTarget.y += (targetFingerY - fingerTarget.y) * 0.05;
+            }
+
+            const pos = geometry.attributes.position.array;
+            let targetBuffer = targetStars;
+            if (currentState === 'HEART') targetBuffer = targetHeart;
+            else if (currentState === 'TEXT') targetBuffer = targetText;
+
+            for (let i = 0; i < particleCount; i++) {
+                const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+
+                targetStars[ix] += starVelocities[ix]; targetStars[iy] += starVelocities[iy]; targetStars[iz] += starVelocities[iz];
+                if (targetStars[ix] > 1500 || targetStars[ix] < -1500) starVelocities[ix] *= -1;
+                if (targetStars[iy] > 1500 || targetStars[iy] < -1500) starVelocities[iy] *= -1;
+                if (targetStars[iz] > 1500 || targetStars[iz] < -1500) starVelocities[iz] *= -1;
+
+                // Khi điều khiển, các ngôi sao sẽ phản hồi rất mềm (0.02)
+                const speed = (currentState === 'STARS' && isFingerControlling) ? 0.02 : 0.06;
+                let targetX = targetBuffer[ix]; let targetY = targetBuffer[iy]; let targetZ = targetBuffer[iz];
+
+                if (currentState === 'TEXT') {
+                    targetX += Math.sin(time + ix * 0.01) * 15;
+                    targetY += Math.cos(time + iy * 0.01) * 8;
+                }
+
+                // --- VẬT LÝ CHẤT LƯU (FLUID DYNAMICS) CHO LỐC XOÁY ---
+                if (currentState === 'STARS' && isFingerControlling) {
+                    const dx = fingerTarget.x - pos[ix];
+                    const dy = fingerTarget.y - pos[iy];
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    // Mở rộng bán kính vùng ảnh hưởng cực lớn để chuyển tiếp mượt mà
+                    const maxDist = 1200;
+
+                    if (dist < maxDist) {
+                        // Lực hút: Cực kỳ nhẹ nhàng (giảm từ 0.08 xuống 0.015)
+                        const force = Math.pow((maxDist - dist) / maxDist, 2) * 0.015;
+
+                        // Lực từ từ kéo vào tâm
+                        pos[ix] += dx * force;
+                        pos[iy] += dy * force;
+
+                        // Lực xoáy: Tăng tỷ lệ lực xoáy so với lực hút (1.2) để nó bơi theo vòng tròn đẹp hơn
+                        const swirl = force * 1.2;
+                        pos[ix] += -dy * swirl;
+                        pos[iy] += dx * swirl;
+
+                        // Khẽ nâng lên trục Z
+                        pos[iz] += (150 - pos[iz]) * force * 0.3;
+                        continue;
+                    }
+                }
+
+                pos[ix] += (targetX - pos[ix]) * speed;
+                pos[iy] += (targetY - pos[iy]) * speed;
+                pos[iz] += (targetZ - pos[iz]) * speed;
+            }
+            geometry.attributes.position.needsUpdate = true;
+
+            if (currentState === 'HEART' || currentState === 'TEXT') {
+                particleGroup.rotation.y += 0.005;
+                const beat = 1 + Math.sin(time * 4) * 0.05 * Math.pow(Math.sin(time * 2), 2);
+                particleGroup.scale.set(beat, beat, beat);
+            } else {
+                particleGroup.rotation.y += (0 - particleGroup.rotation.y) * 0.05;
+                particleGroup.scale.set(1, 1, 1);
+            }
+            renderer.render(scene, camera);
+        }
+
+        function getDist(p1, p2) { return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)); }
+        function isFist(lm) {
+            const wrist = lm[0]; let folded = 0; const tips = [8, 12, 16, 20], bases = [5, 9, 13, 17];
+            for (let i = 0; i < 4; i++) if (getDist(lm[tips[i]], wrist) < getDist(lm[bases[i]], wrist)) folded++;
+            return folded >= 3;
+        }
+        function isPeaceSign(lm) {
+            const wrist = lm[0];
+            const indexUp = getDist(lm[8], wrist) > getDist(lm[5], wrist) * 1.2;
+            const middleUp = getDist(lm[12], wrist) > getDist(lm[9], wrist) * 1.2;
+            const ringDown = getDist(lm[16], wrist) < getDist(lm[13], wrist);
+            const pinkyDown = getDist(lm[20], wrist) < getDist(lm[17], wrist);
+            const fingersApart = getDist(lm[8], lm[12]) > 0.05;
+            return indexUp && middleUp && ringDown && pinkyDown && fingersApart;
+        }
+
+        const aiCursor = document.getElementById('ai-cursor');
+        const loadingScreen = document.getElementById('loading-screen');
+        let isLoaded = false;
+
+        function onResults(results) {
+            if (!isLoaded && results.multiHandLandmarks) {
+                loadingScreen.style.opacity = 0;
+                setTimeout(() => loadingScreen.style.display = 'none', 500);
+                isLoaded = true;
+            }
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hand = results.multiHandLandmarks[0];
+                aiCursor.style.display = 'block';
+                aiCursor.style.left = ((1 - hand[9].x) * window.innerWidth) + 'px';
+                aiCursor.style.top = (hand[9].y * window.innerHeight) + 'px';
+
+                if (isFist(hand)) { currentState = 'HEART'; isFingerControlling = false; }
+                else if (isPeaceSign(hand)) { currentState = 'TEXT'; isFingerControlling = false; }
+                else {
+                    currentState = 'STARS';
+                    isFingerControlling = true;
+                    // Cập nhật tọa độ đích vào biến phụ (targetFingerX/Y) thay vì update trực tiếp tâm lốc xoáy
+                    targetFingerX = ((1 - hand[9].x) - 0.5) * window.innerWidth * 1.6;
+                    targetFingerY = -(hand[9].y - 0.5) * window.innerHeight * 1.6;
+                }
+            } else {
+                aiCursor.style.display = 'none'; currentState = 'STARS'; isFingerControlling = false;
+            }
+        }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+        hands.onResults(onResults);
+        // Tìm dòng 464 và sửa thành:
+        const videoElement = document.querySelector('.input_video');
+
+        const cameraAI = new Camera(videoElement, { // hoặc document.querySelector('.input_video')
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+        initApp();
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    </script>
+</body>
+</html>

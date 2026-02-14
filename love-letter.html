@@ -1,0 +1,403 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bức Thư Vượt Thời Gian - Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Montserrat:wght@300;500&display=swap" rel="stylesheet">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050505;
+            overflow: hidden;
+            font-family: 'VT323', monospace;
+        }
+
+            /* Hiệu ứng màn hình CRT (Scanlines & Vignette) 
+            body::before {
+                content: " ";
+                display: block;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+                z-index: 2;
+                background-size: 100% 2px, 3px 100%;
+                pointer-events: none;
+            }
+
+            body::after {
+                content: " ";
+                display: block;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+                z-index: 3;
+                pointer-events: none;
+            }
+
+        /* Sidebar Chuẩn Chung (Nằm trên cùng) */
+        .hamburger {
+            position: fixed;
+            top: 25px;
+            left: 25px;
+            z-index: 1000;
+            cursor: pointer;
+            width: 35px;
+            height: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+            .hamburger span {
+                display: block;
+                height: 3px;
+                width: 100%;
+                background: #ff3366;
+                border-radius: 3px;
+                transition: 0.3s;
+                box-shadow: 0 0 5px rgba(255,51,102,0.5);
+            }
+
+            .hamburger.open span:nth-child(1) {
+                transform: translateY(11px) rotate(45deg);
+            }
+
+            .hamburger.open span:nth-child(2) {
+                opacity: 0;
+            }
+
+            .hamburger.open span:nth-child(3) {
+                transform: translateY(-11px) rotate(-45deg);
+            }
+
+        .glass-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            height: 100vh;
+            background: rgba(10,10,10,0.9);
+            border-right: 1px solid rgba(255,105,180,0.3);
+            z-index: 100;
+            transform: translateX(-100%);
+            transition: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            padding-top: 80px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+            .glass-sidebar.active {
+                transform: translateX(0);
+            }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+        }
+
+            .nav-links li {
+                padding: 15px 30px;
+                transition: 0.3s;
+            }
+
+                .nav-links li:hover {
+                    background: rgba(255,105,180,0.2);
+                    border-left: 4px solid #ff69b4;
+                }
+
+            .nav-links a {
+                color: white;
+                text-decoration: none;
+                font-size: 1.1rem;
+            }
+
+        /* Giao diện Terminal */
+        #terminal-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 800px;
+            height: 70vh;
+            padding: 30px;
+            z-index: 10;
+            color: #ff3366; /* Màu hồng Neon phong cách Hacker Love */
+            text-shadow: 0 0 8px rgba(255, 51, 102, 0.6);
+            font-size: 1.5rem;
+            line-height: 1.5;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 2px solid rgba(255, 51, 102, 0.3);
+            background: rgba(10, 0, 5, 0.8);
+            box-shadow: inset 0 0 20px rgba(255, 51, 102, 0.1), 0 0 30px rgba(255, 51, 102, 0.2);
+        }
+
+            /* Ẩn thanh cuộn */
+            #terminal-container::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            #terminal-container::-webkit-scrollbar-thumb {
+                background: #ff3366;
+                border-radius: 4px;
+            }
+
+        .line {
+            margin-bottom: 10px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        /* Input Mật khẩu */
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .prompt {
+            margin-right: 10px;
+            color: #ffb3c6;
+        }
+
+        #pwd-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+            width: 50%;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2rem;
+            background-color: #ff3366;
+            animation: blink 1s step-end infinite;
+            vertical-align: bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* Hiệu ứng rung nhẹ khi gõ sai pass */
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            color: red !important;
+            text-shadow: 0 0 10px red !important;
+        }
+
+        @keyframes shake {
+            10%, 90% {
+                transform: translate3d(-2px, 0, 0);
+            }
+
+            20%, 80% {
+                transform: translate3d(4px, 0, 0);
+            }
+
+            30%, 50%, 70% {
+                transform: translate3d(-6px, 0, 0);
+            }
+
+            40%, 60% {
+                transform: translate3d(6px, 0, 0);
+            }
+        }
+
+        .success {
+            color: #00ffcc !important;
+            text-shadow: 0 0 10px #00ffcc !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    <nav class="glass-sidebar">
+        <ul class="nav-links">
+            <li><a href="index.html">🌳 Cây Tình Yêu</a></li>
+            <li><a href="magic-particles.html">✨ Phép Thuật Tình Yêu</a></li>
+            <li><a href="memory-station.html">💿 Trạm Ký Ức 3D</a></li>
+            <li><a href="love-letter.html">💌 Thư Vượt Thời Gian</a></li>
+        </ul>
+    </nav>
+
+    <div id="terminal-container">
+        <div id="output"></div>
+        <div class="input-wrapper" id="input-area">
+            <span class="prompt">root@my-universe:~$</span>
+            <input type="password" id="pwd-input" autocomplete="off" autofocus>
+            <span class="cursor" id="type-cursor"></span>
+        </div>
+    </div>
+
+    <script>
+        const hamburger = document.getElementById('hamburger');
+        const sidebar = document.querySelector('.glass-sidebar');
+        hamburger.addEventListener('click', () => { hamburger.classList.toggle('open'); sidebar.classList.toggle('active'); });
+
+        const outputDiv = document.getElementById('output');
+        const inputArea = document.getElementById('input-area');
+        const pwdInput = document.getElementById('pwd-input');
+        const terminal = document.getElementById('terminal-container');
+        const cursor = document.getElementById('type-cursor');
+
+        // ==========================================
+        // CẤU HÌNH THƯ TÌNH CỦA BẠN Ở ĐÂY
+        // ==========================================
+        const SECRET_PASSWORD = "11052025"; // Pass để mở thư (Mật mã)
+
+        // Nội dung bức thư (Sử dụng \n để xuống dòng)
+        const loveLetter = `
+Khởi tạo kết nối... [OK]
+Giải mã dữ liệu trái tim... [Hoàn tất]
+
+Hello em bé eoooooo Minh Thư xinhhhhhh đẹp dthhhhhh nhất thế giới nhoaaaaaa!
+
+Chúc mừng em bé eooooooo đã nhập đúng password hehe
+Cảm ơn em đã luôn đồng hành cùng anh suốt hơn nửa năm quaaaa, cảm ơn em bé eo đã yêu anh bé eo nhìu tới vậy, để đi đến được mùa lễ Valentine này thì cũng đã là một cột mốc không nhỏ của tụi mình nên anh rất là vui khi được viết những dòng này, luôn háo hức để làm món quà này cho em bé eo (dù là nó còn nhìu cái chưa đỉnh lúm hehe) nên anh hi vọng là em bé sẽ thích món quà nhỏ này của anh ạaaa, Valentine mò tụi mình ở xa nhau quó nên choa anh hẹn lại mụt buổi hẹn hò đầy lãng mạn sau khi em bé eo vô lại Sài Gòn nhoaaaa.
+Chúc em bé eo ngày càng hạnh phúc bên anh, ngày càng yêu anh, yêu chuyện tình của tụi mình hơn, mỗi ngày lại càng sâu đậm và hiểu cho nhau hơn, cùng nhau đi tới những nơi chưa từng đặt chân tới cùng nhau và hạnh phúc dù ở bất cứ nơi đâu ạaaaaa.
+Anh bé eoooooo eoooooo em bé eoooooo nhất thế giớiiiiii
+Ngô Đức Huy
+
+Connection Status: SECURE & FOREVER.
+        `;
+
+        // --- HỆ THỐNG ÂM THANH BÀN PHÍM CƠ (WEB AUDIO API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTypingSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // Tạo âm thanh lạch cạch trầm ấm
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150 + Math.random() * 50, audioCtx.currentTime);
+
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.03);
+        }
+
+        // --- CÁC HÀM XỬ LÝ TERMINAL ---
+        function printLine(text, className = "line") {
+            const div = document.createElement('div');
+            div.className = className;
+            div.innerHTML = text;
+            outputDiv.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function typeWriterEffect(text, speed = 50) {
+            inputArea.style.display = 'none'; // Ẩn chỗ nhập pass đi
+            cursor.style.display = 'inline-block';
+            outputDiv.appendChild(cursor); // Đưa cursor chạy theo chữ
+
+            const div = document.createElement('div');
+            div.className = "line";
+            outputDiv.insertBefore(div, cursor);
+
+            for (let i = 0; i < text.length; i++) {
+                if (text.charAt(i) === '\n') {
+                    div.innerHTML += '<br>';
+                } else {
+                    div.innerHTML += text.charAt(i);
+                    // Phát tiếng gõ phím (trừ dấu cách để nghe giống thật hơn)
+                    if (text.charAt(i) !== ' ') playTypingSound();
+                }
+                terminal.scrollTop = terminal.scrollHeight;
+
+                // Thời gian gõ ngẫu nhiên để giống người thật đang gõ
+                const delay = text.charAt(i) === '.' || text.charAt(i) === ',' ? speed * 5 : speed + (Math.random() * 30);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+
+        async function startDecryption() {
+            pwdInput.disabled = true;
+            printLine(`<span class="prompt">root@my-universe:~$</span> ${pwdInput.value}`);
+            inputArea.style.display = 'none';
+
+            printLine("Verifying credentials...");
+            await new Promise(r => setTimeout(r, 800));
+
+            if (pwdInput.value === SECRET_PASSWORD) {
+                printLine("[ ACCESS GRANTED ]", "line success");
+                await new Promise(r => setTimeout(r, 1000));
+
+                // Chạy hiệu ứng giải mã giả lập
+                let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*";
+                let decryptLine = document.createElement('div');
+                decryptLine.className = "line success";
+                outputDiv.appendChild(decryptLine);
+
+                for(let i=0; i<20; i++) {
+                    let randomStr = "";
+                    for(let j=0; j<40; j++) randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+                    decryptLine.innerText = "DECRYPTING: " + randomStr;
+                    playTypingSound();
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                decryptLine.innerText = "DECRYPTING: 100% COMPLETE.";
+                await new Promise(r => setTimeout(r, 1000));
+
+                outputDiv.innerHTML = ""; // Xóa màn hình
+                await typeWriterEffect(loveLetter.trim(), 40); // Tốc độ gõ thư
+            } else {
+                printLine("[ ACCESS DENIED ] Invalid Password.", "line shake");
+                pwdInput.value = "";
+                pwdInput.disabled = false;
+                inputArea.style.display = 'flex';
+                pwdInput.focus();
+            }
+        }
+
+        // Khởi động Terminal
+        window.onload = async () => {
+            printLine("SYSTEM BOOT COMPLETED.");
+            await new Promise(r => setTimeout(r, 500));
+            printLine("ENCRYPTED MESSAGE DETECTED. REQUIRED AUTHENTICATION.");
+            pwdInput.focus();
+        };
+
+        // Bắt sự kiện Enter khi nhập Pass
+        pwdInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                if(audioCtx.state === 'suspended') audioCtx.resume(); // Kích hoạt Audio
+                if(pwdInput.value.trim() !== "") startDecryption();
+            }
+        });
+
+        // Luôn focus vào ô nhập khi click vào màn hình
+        terminal.addEventListener('click', () => {
+            if (!pwdInput.disabled) pwdInput.focus();
+        });
+    </script>
+</body>
+</html>

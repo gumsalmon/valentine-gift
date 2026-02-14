@@ -1,0 +1,905 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Station - Starlight Edition</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;500&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --primary: #ffffff; /* Trắng tinh khôi */
+            --secondary: #aaddff; /* Xanh băng */
+            --glass: rgba(20, 20, 25, 0.3);
+            --border: rgba(255, 255, 255, 0.15);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Montserrat', sans-serif;
+            color: white;
+        }
+
+        /* --- 3D VIEWPORT --- */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            z-index: 1;
+            /* Nền đen tuyền để sao trắng nổi bật */
+            background: #050508;
+        }
+
+        /* --- UI OVERLAY --- */
+        .overlay-ui {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Header */
+        .header-wrapper {
+            text-align: center;
+            margin-top: 6vh;
+            opacity: 0;
+            transform: translateY(-40px);
+            transition: all 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+            .header-wrapper h1 {
+                font-family: 'Dancing Script';
+                font-size: 4.5rem;
+                margin: 0;
+                /* Gradient Bạc sang Trắng */
+                background: linear-gradient(to right, #cfd9df 0%, #e2ebf0 100%);
+                background-clip: text;
+                -webkit-background-clip: text;
+                color: transparent;
+                -webkit-text-fill-color: transparent;
+                text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+            }
+
+        .subtitle {
+            font-family: 'Cinzel';
+            font-size: 0.8rem;
+            letter-spacing: 6px;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            margin-top: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            display: inline-block;
+            padding-bottom: 8px;
+        }
+
+        /* Hint */
+        .center-hint {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.8s;
+            pointer-events: none;
+        }
+
+            .center-hint p {
+                font-family: 'Cinzel';
+                font-size: 0.8rem;
+                letter-spacing: 4px;
+                color: rgba(255,255,255,0.8);
+                margin-bottom: 15px;
+                text-transform: uppercase;
+            }
+
+        .star-pulse {
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 20px 5px white;
+            margin: 0 auto;
+            animation: starPulse 2s infinite;
+        }
+
+        @keyframes starPulse {
+            0% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.5);
+            }
+
+            100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+        }
+
+        /* Player */
+        .player-bar {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            transition: opacity 1s ease 0.5s;
+            pointer-events: auto;
+        }
+
+        .track-info {
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.8);
+            font-family: 'Cinzel';
+        }
+
+        .glass-panel {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 15px 45px;
+            border-radius: 60px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+            .glass-panel:hover {
+                border-color: rgba(255,255,255,0.4);
+                box-shadow: 0 15px 50px rgba(255, 255, 255, 0.1);
+            }
+
+        .viz-bars {
+            display: flex;
+            gap: 4px;
+            height: 20px;
+            align-items: flex-end;
+        }
+
+        .bar {
+            width: 3px;
+            background: white;
+            border-radius: 2px;
+            height: 3px;
+            transition: height 0.08s ease;
+        }
+
+        .play-status {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: white;
+            letter-spacing: 1px;
+            width: 60px;
+            text-align: center;
+        }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1.2s;
+        }
+
+        .star-loader {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            animation: spin 2s linear infinite;
+        }
+
+            .star-loader::before, .star-loader::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                border: 2px solid transparent;
+                border-top-color: #fff;
+            }
+
+            .star-loader::after {
+                border-top-color: transparent;
+                border-bottom-color: #aaddff;
+                animation: spin 1s reverse linear infinite;
+            }
+
+        #loader-text {
+            font-family: 'Cinzel';
+            font-size: 0.8rem;
+            letter-spacing: 5px;
+            color: #888;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+
+        #btn-enter {
+            padding: 14px 40px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+            font-family: 'Cinzel';
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: 0.5s;
+            opacity: 0;
+            pointer-events: none;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+            #btn-enter:hover {
+                background: white;
+                color: black;
+                box-shadow: 0 0 30px rgba(255,255,255,0.4);
+            }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Sidebar */
+        .hamburger {
+            position: fixed;
+            top: 40px;
+            left: 40px;
+            z-index: 1000;
+            cursor: pointer;
+            width: 40px;
+            height: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            pointer-events: auto;
+        }
+
+            .hamburger span {
+                display: block;
+                height: 2px;
+                width: 100%;
+                background: #fff;
+                transition: 0.4s;
+            }
+
+            .hamburger.open span:nth-child(1) {
+                transform: translateY(14px) rotate(45deg);
+            }
+
+            .hamburger.open span:nth-child(2) {
+                opacity: 0;
+            }
+
+            .hamburger.open span:nth-child(3) {
+                transform: translateY(-14px) rotate(-45deg);
+            }
+
+        .glass-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 100vh;
+            background: rgba(10, 10, 12, 0.95);
+            backdrop-filter: blur(40px);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+            transform: translateX(-100%);
+            transition: transform 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+            padding-top: 150px;
+        }
+
+            .glass-sidebar.active {
+                transform: translateX(0);
+            }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+        }
+
+            .nav-links li a {
+                display: block;
+                padding: 25px 50px;
+                color: #888;
+                text-decoration: none;
+                font-size: 1.1rem;
+                transition: 0.4s;
+                border-left: 2px solid transparent;
+                font-family: 'Cinzel';
+                letter-spacing: 1px;
+            }
+
+                .nav-links li a:hover {
+                    color: #fff;
+                    border-left: 2px solid #fff;
+                    background: rgba(255,255,255,0.05);
+                    padding-left: 60px;
+                }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="star-loader"></div>
+        <div id="loader-text">CONNECTING STARS...</div>
+        <button id="btn-enter">Start Journey</button>
+    </div>
+
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    <nav class="glass-sidebar">
+        <ul class="nav-links">
+            <li><a href="index.html">Tree of Love</a></li>
+            <li><a href="magic-particles.html">Magic Dust</a></li>
+            <li><a href="memory-station.html" style="color:white; border-left:2px solid white;">Memory Station</a></li>
+            <li><a href="love-letter.html">Timeless Letter</a></li>
+        </ul>
+    </nav>
+
+    <div class="overlay-ui">
+        <div class="header-wrapper" id="ui-header">
+            <h1>Memory Station</h1>
+            <span class="subtitle">Starlight Edition • Die With A Smile</span>
+        </div>
+
+        <div class="center-hint" id="ui-hint">
+            <p>Tap to Play</p>
+            <div class="star-pulse"></div>
+        </div>
+
+        <div class="player-bar" id="ui-player">
+            <div class="track-info">Lady Gaga, Bruno Mars - Die With A Smile</div>
+            <div class="glass-panel">
+                <div class="viz-bars" id="viz-container"></div>
+                <div class="play-status" id="play-status">PAUSED</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+    <audio id="audio-source" src="assets/Die%20With%20A%20Smile.mp3" crossorigin="anonymous" loop></audio>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- GLOBAL SETTINGS ---
+        const CONFIG = {
+            camera: { fov: 45, x: 0, y: 30, z: 85 },
+            // Ánh sáng đã được tăng cường
+            bloom: { strength: 0.35, radius: 0.5, threshold: 0.1 },
+            colors: {
+                bg: 0x050508,
+                ambient: 0x666666, // Ambient sáng hơn (Grey 40%)
+                spot: 0xffaa00,    // Vàng ấm cho máy nhạc
+                direct: 0xffffff,  // Đèn trắng chiếu ảnh
+                rim: 0xaaddff,     // Viền xanh băng
+            },
+            // Cấu hình vật lý ảnh
+            photo: {
+                count: 30,
+                spawnRate: 1.8,
+                lifeTime: 14,
+                boundsX: 22, // Giới hạn chiều ngang để không văng ra ngoài
+            }
+        };
+
+        const CAPTIONS = ["Eternal", "Starlight", "Destiny", "With You", "Forever", "Memories", "Pure", "Light", "Smile", "Us"];
+
+        // Tạo mảng 30 ảnh
+        const ASSETS_URLS = [];
+        for (let i = 1; i <= 30; i++) ASSETS_URLS.push(`assets/image${i}.jpg`);
+
+        /**
+         * -------------------------------------------------------------------
+         * CLASS: UNIVERSE SYSTEM (Chỉ Sao Trắng - Không Nebula)
+         * -------------------------------------------------------------------
+         */
+        class UniverseSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.group = new THREE.Group();
+                this.scene.add(this.group);
+                this.createStarField();
+            }
+
+            createStarField() {
+                // Tăng số lượng sao lên 4000
+                const count = 4000;
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                const sizes = new Float32Array(count);
+
+                for (let i = 0; i < count; i++) {
+                    // Phân bố cầu (Spherical Distribution) để tạo chiều sâu
+                    const r = 150 + Math.random() * 400;
+                    const theta = 2 * Math.PI * Math.random();
+                    const phi = Math.acos(2 * Math.random() - 1);
+
+                    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                    pos[i * 3 + 2] = r * Math.cos(phi);
+
+                    // Kích thước ngẫu nhiên
+                    sizes[i] = Math.random() * 2.0;
+                }
+
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+                const mat = new THREE.PointsMaterial({
+                    color: 0xffffff, // Trắng tinh
+                    size: 1.0,
+                    transparent: true, opacity: 0.9,
+                    sizeAttenuation: true, // Sao ở xa sẽ nhỏ hơn
+                    blending: THREE.AdditiveBlending
+                });
+
+                this.stars = new THREE.Points(geo, mat);
+                this.group.add(this.stars);
+            }
+
+            update() {
+                // Xoay rất chậm để tạo cảm giác vũ trụ tĩnh lặng
+                this.stars.rotation.y += 0.0001;
+                this.stars.rotation.z += 0.00005;
+            }
+        }
+
+        /**
+         * -------------------------------------------------------------------
+         * CLASS: ASSET MANAGER
+         * -------------------------------------------------------------------
+         */
+        class AssetManager {
+            constructor() {
+                this.textures = [];
+                this.currentIndex = 0;
+            }
+            async preload() {
+                const promises = ASSETS_URLS.map(url => new Promise(resolve => {
+                    const img = new Image();
+                    img.crossOrigin = "Anonymous";
+                    img.src = url;
+                    img.onload = () => resolve(img);
+                    img.onerror = () => resolve(null);
+                }));
+                const res = await Promise.all(promises);
+                this.textures = res.filter(img => img !== null);
+            }
+            getNext() {
+                if (this.textures.length === 0) return null;
+                const data = {
+                    img: this.textures[this.currentIndex % this.textures.length],
+                    text: CAPTIONS[this.currentIndex % CAPTIONS.length]
+                };
+                this.currentIndex++;
+                return data;
+            }
+        }
+
+        /**
+         * -------------------------------------------------------------------
+         * CLASS: PHOTO DIRECTOR (Fix: Containment & Brightness)
+         * -------------------------------------------------------------------
+         */
+        class PhotoDirector {
+            constructor(scene, camera, assetMgr) {
+                this.scene = scene;
+                this.camera = camera;
+                this.assetMgr = assetMgr;
+                this.photos = [];
+                this.group = new THREE.Group();
+                this.scene.add(this.group);
+                this.timer = 0;
+            }
+
+            createPolaroid(img, text) {
+                const cvs = document.createElement('canvas'); cvs.width = 512; cvs.height = 640;
+                const ctx = cvs.getContext('2d');
+
+                // Giấy ảnh màu trắng ngà sáng (Bright Cream)
+                ctx.fillStyle = '#f8f8f8'; ctx.fillRect(0, 0, 512, 640);
+
+                // Ảnh
+                if (img) {
+                    const s = Math.min(img.width, img.height);
+                    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 30, 30, 452, 452);
+                    // Viền mờ nhẹ
+                    ctx.strokeStyle = "rgba(0,0,0,0.05)"; ctx.lineWidth = 1; ctx.strokeRect(30, 30, 452, 452);
+                }
+
+                // Text
+                ctx.fillStyle = '#111'; ctx.font = '45px "Dancing Script"'; ctx.textAlign = 'center';
+                ctx.fillText(text, 256, 580);
+
+                const tex = new THREE.CanvasTexture(cvs);
+                tex.anisotropy = 4;
+                // QUAN TRỌNG: SRGB để màu ảnh đúng, không bị cháy hoặc tối
+                tex.colorSpace = THREE.SRGBColorSpace;
+                return tex;
+            }
+
+            spawn() {
+                const content = this.assetMgr.getNext();
+                if (!content) return;
+
+                const tex = this.createPolaroid(content.img, content.text);
+                const mat = new THREE.MeshStandardMaterial({
+                    map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0,
+                    roughness: 0.6, // Giảm roughness chút để ảnh bắt sáng tốt hơn (sáng hơn)
+                    metalness: 0.0,
+                    emissive: 0x111111 // Tự phát sáng nhẹ để không bao giờ bị đen kịt
+                });
+
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 12.5), mat);
+                mesh.position.set(-4, 2, 0);
+                mesh.scale.set(0, 0, 0);
+
+                // --- TÍNH TOÁN VÙNG AN TOÀN (CONTAINMENT) ---
+                // Chỉ bay trong khoảng X: -20 đến +20 (nằm gọn trong màn hình ở depth 50)
+                const rangeX = CONFIG.photo.boundsX;
+                const tx = (Math.random() - 0.5) * (rangeX * 2);
+
+                const ty = 30 + Math.random() * 8; // Độ cao vừa phải
+                const tz = 50 + Math.random() * 5; // Độ gần camera
+
+                mesh.userData = {
+                    phase: 'RISING', time: 0,
+                    start: mesh.position.clone(),
+                    end: new THREE.Vector3(tx, ty, tz),
+                    // Giảm biên độ lắc lư để tránh bay ra ngoài khi đang lơ lửng
+                    swayAmp: 1.5 + Math.random(),
+                    swaySpeed: 1 + Math.random(),
+                    swayOffset: Math.random() * 100
+                };
+
+                this.group.add(mesh);
+                this.photos.push(mesh);
+            }
+
+            update(dt, isPlaying) {
+                if (isPlaying) {
+                    this.timer += dt;
+                    if (this.timer > CONFIG.photo.spawnRate && this.photos.length < CONFIG.photo.count) {
+                        this.spawn(); this.timer = 0;
+                    }
+                }
+
+                const dummy = new THREE.Object3D();
+
+                for (let i = this.photos.length - 1; i >= 0; i--) {
+                    const p = this.photos[i];
+                    p.userData.time += dt;
+                    const t = p.userData.time;
+
+                    // Phase 1: Mọc lên & Bay vào vị trí
+                    if (p.userData.phase === 'RISING') {
+                        const dur = 7.0;
+                        const prog = Math.min(t / dur, 1);
+                        const ease = 1 - Math.pow(1 - prog, 3); // Ease Out Cubic
+
+                        const curr = new THREE.Vector3().lerpVectors(p.userData.start, p.userData.end, ease);
+
+                        // Lắc lư nhẹ
+                        p.position.x = curr.x + Math.sin(t + p.userData.swayOffset) * p.userData.swayAmp;
+                        p.position.y = curr.y;
+                        p.position.z = curr.z;
+
+                        p.scale.setScalar(Math.min(prog * 1.2, 1));
+                        p.material.opacity = Math.min(prog * 2, 1);
+
+                        // LUÔN HƯỚNG MẶT VỀ CAMERA
+                        dummy.position.copy(p.position);
+                        dummy.lookAt(this.camera.position);
+                        p.quaternion.slerp(dummy.quaternion, 0.05);
+
+                        // Nghiêng nhẹ (Banking)
+                        p.rotation.z = Math.cos(t * 0.5) * 0.08;
+
+                        if (prog >= 1) { p.userData.phase = 'FLOATING'; p.userData.floatStart = t; }
+                    }
+                    // Phase 2: Lơ lửng & Rơi chậm
+                    else if (p.userData.phase === 'FLOATING') {
+                        const ft = t - p.userData.floatStart;
+
+                        p.position.y -= 0.03; // Rơi xuống chậm rãi
+
+                        // Giới hạn biên độ lắc lư khi rơi để không văng ra ngoài
+                        const sway = Math.sin(t * 0.5 + p.userData.swayOffset) * p.userData.swayAmp;
+                        // Clamp X position
+                        if (Math.abs(p.position.x + sway) < 28) {
+                            p.position.x += sway * 0.01;
+                        }
+
+                        // Maintain eye contact
+                        dummy.position.copy(p.position);
+                        dummy.lookAt(this.camera.position);
+                        p.quaternion.slerp(dummy.quaternion, 0.02);
+
+                        if (ft > 6) p.userData.phase = 'FADING';
+                    }
+                    // Phase 3: Tan biến
+                    else if (p.userData.phase === 'FADING') {
+                        p.position.y -= 0.06; // Rơi nhanh hơn
+                        p.material.opacity -= 0.02;
+                        if (p.material.opacity <= 0) {
+                            this.group.remove(p); p.geometry.dispose(); p.material.dispose();
+                            this.photos.splice(i, 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * -------------------------------------------------------------------
+         * CLASS: STAGE (Máy nhạc & Light Rig)
+         * -------------------------------------------------------------------
+         */
+        function createStage(scene) {
+            const grp = new THREE.Group(); scene.add(grp);
+
+            const wood = new THREE.MeshStandardMaterial({ color: 0x5c3a2a, roughness: 0.4, metalness: 0.1 });
+            const metal = new THREE.MeshStandardMaterial({ color: 0x111, roughness: 0.2, metalness: 0.8 });
+            const gold = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.2, metalness: 0.9 });
+            const black = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2 });
+
+            // Base box
+            const base = new THREE.Mesh(new THREE.BoxGeometry(40, 5, 32), wood);
+            base.position.y = -2.5; base.receiveShadow = true; base.castShadow = true; grp.add(base);
+
+            // Legs
+            const legGeo = new THREE.CylinderGeometry(1.5, 1, 2, 16);
+            [[-18, -4.5, -14], [18, -4.5, -14], [-18, -4.5, 14], [18, -4.5, 14]].forEach(p => {
+                const l = new THREE.Mesh(legGeo, metal); l.position.set(...p); grp.add(l);
+            });
+
+            // Platter & Vinyl
+            const platter = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 0.8, 64), metal);
+            platter.position.set(-4, 0.4, 0); platter.receiveShadow = true; grp.add(platter);
+
+            const vGrp = new THREE.Group(); vGrp.position.set(-4, 1.0, 0); grp.add(vGrp);
+            const rec = new THREE.Mesh(new THREE.CylinderGeometry(12.8, 12.8, 0.1, 64), black);
+            rec.castShadow = true; vGrp.add(rec);
+            vGrp.add(new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.5, 0.11, 32),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x222222 }))); // Label trắng đơn giản
+
+            // Arm
+            const armBase = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.5, 3, 32), metal);
+            armBase.position.set(14, 1.5, -10); grp.add(armBase);
+
+            const armRot = new THREE.Group(); armRot.position.set(14, 3.0, -10); grp.add(armRot);
+            armRot.add(new THREE.Mesh(new THREE.SphereGeometry(2, 32, 32), metal));
+
+            const armLift = new THREE.Group(); armRot.add(armLift);
+            const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 24, 16), gold);
+            rod.rotation.z = Math.PI / 2; rod.position.set(-8, 0, 0); armLift.add(rod);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.2, 4), metal);
+            head.position.set(-20, 0, 0); head.rotation.y = 0.35; armLift.add(head);
+            const needle = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 8), gold);
+            needle.position.set(-20.5, -0.8, 0.8); needle.rotation.z = Math.PI; armLift.add(needle);
+
+            return { grp, vGrp, armRot, armLift };
+        }
+
+        /**
+         * -------------------------------------------------------------------
+         * MAIN APP
+         * -------------------------------------------------------------------
+         */
+        const App = {
+            async init() {
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x050508, 0.003); // Fog đen nhạt
+
+                this.camera = new THREE.PerspectiveCamera(CONFIG.camera.fov, window.innerWidth / window.innerHeight, 0.1, 500);
+                this.camera.position.set(CONFIG.camera.x, CONFIG.camera.y, CONFIG.camera.z);
+                this.camera.lookAt(0, 5, 0);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                // Color Management chuẩn
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.2; // Tăng sáng tổng thể
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+                document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+
+                // Post Processing
+                this.composer = new EffectComposer(this.renderer);
+                this.composer.addPass(new RenderPass(this.scene, this.camera));
+                // Bloom nhẹ, ngưỡng cao (chỉ phần cực sáng mới phát sáng)
+                const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0.5, 0.85);
+                this.composer.addPass(bloom);
+
+                // --- LIGHTING RIG (BRIGHTNESS FIX) ---
+                // 1. Ambient: Tăng cường độ
+                const ambient = new THREE.AmbientLight(CONFIG.colors.ambient, 0.7);
+                this.scene.add(ambient);
+
+                // 2. Main Spot: Chiếu máy nhạc
+                const spot = new THREE.SpotLight(CONFIG.colors.spot, 2500);
+                spot.position.set(20, 50, 20); spot.castShadow = true;
+                spot.angle = 0.5; spot.penumbra = 0.5;
+                this.scene.add(spot);
+
+                // 3. Photo Light: Đèn trắng chiếu thẳng vào khu vực ảnh bay
+                // Giúp ảnh sáng rõ màu sắc
+                const photoLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                photoLight.position.set(0, 20, 80); // Từ phía camera chiếu vào
+                this.scene.add(photoLight);
+
+                // 4. Rim Light: Viền xanh tạo khối
+                const rim = new THREE.PointLight(CONFIG.colors.rim, 80, 100);
+                rim.position.set(-30, 20, -30); this.scene.add(rim);
+
+                // Modules
+                this.universe = new UniverseSystem(this.scene);
+                this.stage = createStage(this.scene);
+                this.assets = new AssetManager();
+                this.director = new PhotoDirector(this.scene, this.camera, this.assets);
+
+                await this.assets.preload();
+
+                // UI
+                document.querySelector('.star-loader').style.display = 'none';
+                document.getElementById('loader-text').style.display = 'none';
+                const btn = document.getElementById('btn-enter');
+                btn.style.opacity = 1; btn.style.pointerEvents = 'auto';
+
+                // Viz
+                this.bars = [];
+                const viz = document.getElementById('viz-container');
+                for (let i = 0; i < 8; i++) {
+                    const b = document.createElement('div'); b.className = 'bar'; viz.appendChild(b);
+                    this.bars.push(b);
+                }
+
+                this.bindEvents();
+                this.clock = new THREE.Clock();
+                this.isPlaying = false;
+                this.animate();
+            },
+
+            bindEvents() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                document.getElementById('btn-enter').addEventListener('click', () => {
+                    document.getElementById('loader').style.opacity = 0;
+                    setTimeout(() => document.getElementById('loader').remove(), 1200);
+
+                    document.getElementById('ui-header').style.opacity = 1;
+                    document.getElementById('ui-header').style.transform = 'translateY(0)';
+                    document.getElementById('ui-player').style.opacity = 1;
+                    document.getElementById('ui-hint').style.opacity = 1;
+
+                    // Fake Audio Init
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    this.ac = new AC();
+                });
+
+                const raycaster = new THREE.Raycaster();
+                window.addEventListener('click', (e) => {
+                    if (e.target.closest('button') || e.target.closest('.hamburger')) return;
+                    raycaster.setFromCamera(new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1), this.camera);
+                    const hits = raycaster.intersectObjects(this.stage.grp.children, true);
+                    if (hits.length > 0) this.togglePlay();
+                });
+
+                document.getElementById('hamburger').addEventListener('click', (e) => {
+                    e.currentTarget.classList.toggle('open');
+                    document.querySelector('.glass-sidebar').classList.toggle('active');
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    const x = (e.clientX / window.innerWidth - 0.5) * 2;
+                    const y = (e.clientY / window.innerHeight - 0.5) * 2;
+                    this.camera.position.x += (x * 3 - this.camera.position.x) * 0.05;
+                    this.camera.position.y += (30 + y * 1.5 - this.camera.position.y) * 0.05;
+                    this.camera.lookAt(0, 5, 0);
+                });
+            },
+
+            togglePlay() {
+                const audio = document.getElementById('audio-source');
+                const st = document.getElementById('play-status');
+                const ht = document.getElementById('ui-hint');
+
+                if (this.isPlaying) {
+                    audio.pause(); this.isPlaying = false; st.innerText = "PAUSED"; ht.style.opacity = 1;
+                } else {
+                    audio.play(); this.isPlaying = true; st.innerText = "PLAYING"; ht.style.opacity = 0;
+                    if (this.ac && this.ac.state === 'suspended') this.ac.resume();
+                }
+            },
+
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+                const dt = this.clock.getDelta();
+
+                // Arm Animation
+                const tY = this.isPlaying ? Math.PI / 4.5 : Math.PI / 1.5;
+                this.stage.armRot.rotation.y += (tY - this.stage.armRot.rotation.y) * 0.04;
+                const d = Math.abs(this.stage.armRot.rotation.y - Math.PI / 4.5);
+                const tZ = (this.isPlaying && d < 0.1) ? 0.05 : -0.15;
+                this.stage.armLift.rotation.z += (tZ - this.stage.armLift.rotation.z) * 0.05;
+
+                // Loop updates
+                this.universe.update();
+
+                if (this.isPlaying) {
+                    this.stage.vGrp.rotation.y -= 0.033;
+                    this.bars.forEach(b => b.style.height = 3 + Math.random() * 15 + 'px');
+                } else {
+                    this.bars.forEach(b => b.style.height = '3px');
+                }
+
+                this.director.update(dt, this.isPlaying);
+                this.composer.render();
+            }
+        };
+
+        App.init();
+    </script>
+</body>
+</html>
